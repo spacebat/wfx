@@ -7,6 +7,7 @@
    :widget-class
    :widget
    :render
+   :action-handler
    :name
    :make-widget)
   )

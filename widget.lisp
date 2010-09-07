@@ -148,6 +148,8 @@ The dom is automatically updated before a request is passed to a hunchentoot han
 
 	  (loop for v being the hash-value of (gethash session-name *object-cache*) 
 	     do 
+
+	       
 	       (when (hash-table-p v)
 		   (maphash
 		    #'(lambda (key val)
@@ -156,7 +158,7 @@ The dom is automatically updated before a request is passed to a hunchentoot han
 		    v)
 		   )
 	       (unless (hash-table-p v)
-		   (action-handler v)))))
+		 (action-handler v)))))
 
     (error (e)	
       (break (format nil "handle-request :around **** ~A" e))))  
