@@ -6,10 +6,17 @@
   (:export
    :widget-class
    :widget
+   :html-element
+   :widgy-name
+   :un-widgy-name
    :render
    :action-handler
+   :synq-widget-data
    :name
-   :make-widget)
+   :make-widget
+   :page-include-bits
+   :get-widget
+   :set-widget)
   )
 
 

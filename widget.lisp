@@ -2,7 +2,7 @@
 
 (defclass widget-class (standard-class)
   ((include-bits :initarg :include-bits :initform nil :accessor include-bits))
-  (:documentation "Base class for widgets."))
+  (:documentation "Meta class for widgets."))
 
 
 ;;This is needed to use the widget-class as meta-class in an class derived from standard-class.
@@ -21,17 +21,18 @@
 
 (defclass widget ()
   ((instance-name :initarg :instance-name :initform nil :accessor instance-name)
-   (group-index :initarg :group-index :initform nil :accessor group-index)))
+   (group-index :initarg :group-index :initform nil :accessor group-index)
+   (data :initarg :data :initform nil :accessor data)))
 
 (defgeneric render (widget &rest named-pairs &key &allow-other-keys)
   (:documentation "Renders a widget."))
 
 
-(defun widgy-name (widget-instance-name name)
-  (format nil "~A^~A" widget-instance-name name))
+(defun widgy-name (instance name)
+  (format nil "~A_~A" (replace-all (instance-name instance) "-" "_") name))
 
-(defun un-widgy-name (widget-instance-name name)
-  (replace-all name (format nil "~A^" widget-instance-name) ""))
+(defun un-widgy-name (instance name)
+  (replace-all name (format nil "~A_" (replace-all (instance-name instance) "-" "_")) ""))
 
 
 (defun get-slot (instance slot-name)
@@ -95,32 +96,43 @@ The dom is automatically updated before a request is passed to a hunchentoot han
 (defun update-slot (instance slot-name value) 
   (let ((method (get-method slot-name)))
     (when method 
+
       (apply method value (list instance)))
     (unless method      
       (setf (slot-value instance slot-name) value))))
 
 
+(defgeneric synq-widget-data (widget)
+ (:method ((widget widget))
+    (let ((parameters (append (get-parameters *request*) (post-parameters *request*))))
+      
+      (when (slot-boundp widget 'data)
+
+	(dolist (object (data widget))
+	  (when (typep object 'standard-object)
+	    (let ((slots (class-slots (class-of object))))
+
+	      (dolist (parameter parameters)
+		(let ((slot (find (car parameter) slots
+				  :key 'slot-definition-name :test #'string-equal)))
+		  (when slot
+
+		    (update-slot object (slot-definition-name slot) (cdr parameter))
+		    ))))))))))
+
+
 (defgeneric update-dom (widget)
-  (:documentation "Updates widget slots values according to widget parameter mapping. 
-    By default slots that have names that match parameter names are updated with the parameter values.
-    Parameter-slot-mappings override any default mappings.")
+  (:documentation "Updates widget slots values. Slots that have names that match parameter names are updated with the parameter values.")
   (:method ((widget widget))
-    (let ((parameters (append (get-parameters *request*) (post-parameters *request*)))
-	  (index 0))
+    
+    (let ((parameters (append (get-parameters *request*) (post-parameters *request*)))	  
+	  (slots (class-slots (class-of widget) )))
 
       (dolist (parameter parameters)
-	(let ((slot (find (un-widgy-name (instance-name widget) (car parameter)) (class-slots (class-of widget) )
-			  :key 'slot-definition-name :test #'string-equal))
-	      )
+	(let ((slot (find (un-widgy-name widget (car parameter)) slots
+			  :key 'slot-definition-name :test #'string-equal)))
 	  (when slot
-	    (when (group-index widget)
-	      (when (equal (group-index widget) index) 	
-		  (update-slot widget (slot-definition-name slot) (cdr parameter)))
-	      (incf index))
-	    (unless (group-index widget)
-	      (update-slot widget (slot-definition-name slot) (cdr parameter))))
-
-	  )))))
+	    (update-slot widget (slot-definition-name slot) (cdr parameter))))))))
 
 (defgeneric action-handler (widget)
   (:documentation "This method is called after the dom has been updated from parameters. This is the ideal place to place code that handles post or get actions.")
@@ -138,18 +150,20 @@ The dom is automatically updated before a request is passed to a hunchentoot han
 
 	  (loop for v being the hash-value of (gethash session-name *object-cache*) 
 	     do 
-	       (if (hash-table-p v)
+	       (when (hash-table-p v)
 		   (maphash
 		     #'(lambda (key val)
 			 (declare (ignore key))
-			 (update-dom val))
+			 (update-dom val)
+			 (synq-widget-data val))
 		     v)
-		   (update-dom v)))
+		   )
+	       (unless (hash-table-p v)
+		   (update-dom v)
+		   (synq-widget-data v)))
 
 	  (loop for v being the hash-value of (gethash session-name *object-cache*) 
-	     do 
-
-	       
+	     do 	       
 	       (when (hash-table-p v)
 		   (maphash
 		    #'(lambda (key val)
@@ -158,7 +172,10 @@ The dom is automatically updated before a request is passed to a hunchentoot han
 		    v)
 		   )
 	       (unless (hash-table-p v)
+
 		 (action-handler v)))))
+
+
 
     (error (e)	
       (break (format nil "handle-request :around **** ~A" e))))  
@@ -188,3 +205,45 @@ The dom is automatically updated before a request is passed to a hunchentoot han
 				(if (string-equal (class-name (class-of (class-of value))) "widget-class")
 				 (widget-include-bits (class-of value)))) v))
 	       ))))
+
+
+(defun get-widget (instance-name &optional group-index)
+  (let ((session-name)
+	(instance))
+    (setf session-name (intern (format nil "~A-~A" (session-value "session-token") 
+				       (replace-all (replace-all (car (split-string (request-uri*) #\?)) "/" "-")  "." "-"))))
+
+    (when (gethash session-name *object-cache*)
+      (when (gethash instance-name (gethash session-name *object-cache*))
+	(when group-index	  
+	  (setf instance (gethash group-index (gethash instance-name (gethash session-name *object-cache*))))
+	  )
+	(unless group-index
+	  (setf instance (gethash instance-name (gethash session-name *object-cache*))))))
+    instance))
+
+
+(defun set-widget (instance &key group-index )
+  "This function instanciates a widget or returns the widget from the dom if it already exists.
+Each request uri has its own hashtable with widgets. The hashtable represents a simple dom. 
+The dom is automatically updated before a request is passed to a hunchentoot handler."
+
+  (let ((session-name))
+
+    (unless (session-value "session-token")
+      (setf (session-value "session-token") (random 10810)))
+
+
+    (setf session-name (intern (format nil "~A-~A" (session-value "session-token") 
+				       (replace-all (replace-all (car (split-string (request-uri*) #\?)) "/" "-")  "." "-"))))
+
+    (unless (gethash session-name *object-cache*)
+      (setf (gethash session-name *object-cache*) (make-hash-table :test 'equal)))    
+
+    (when group-index	  	  
+      (setf (gethash (instance-name instance) (gethash session-name *object-cache*)) (make-hash-table :test 'equal))
+      (setf (gethash group-index (gethash (instance-name instance) (gethash session-name *object-cache*))) instance))
+
+    (unless group-index
+      (setf (gethash (instance-name instance) (gethash session-name *object-cache*)) instance))
+    instance))
