@@ -16,7 +16,6 @@
    :make-widget
    :page-include-bits
    :get-widget
-   :set-widget)
-  )
+   :set-widget))
 
 
