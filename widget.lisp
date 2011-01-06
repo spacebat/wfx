@@ -89,48 +89,50 @@ The dom is automatically updated before a request is passed to a hunchentoot han
     instance))
 
 (defun get-method (name)
-  (when (fboundp name)                  ;'(list 'setf name)
+  (when (fboundp name)
     (let ((generic-function (fdefinition (list 'setf name))))
       (when generic-function
         (compute-discriminating-function generic-function)))))
 
 (defun update-slot (instance slot-name value)
   (let ((method (get-method slot-name)))
-    (when method
+    (if method
+        (funcall method value instance)
+        (setf (slot-value instance slot-name) value))))
 
-      (apply method value (list instance)))
-    (unless method
-      (setf (slot-value instance slot-name) value))))
+(defgeneric synq-widget-data (widget))
 
-(defgeneric synq-widget-data (widget)
-  (:method ((widget widget))
-    (let ((parameters (append (get-parameters *request*) (post-parameters *request*))))
-      (when (slot-boundp widget 'data)
-        (dolist (object (data widget))
-          (when (typep object 'standard-object)
-            (let ((slots (class-slots (class-of object))))
-              (dolist (parameter parameters)
-                (let ((slot (find (car parameter) slots
-                                  :key 'slot-definition-name :test #'string-equal)))
-                  (when slot
-                    (update-slot object (slot-definition-name slot) (cdr parameter))))))))))))
+(defgeneric action-handler (widget)
+  (:documentation "This function is called after the dom has been updated from parameters.
+This is the ideal place to place code that handles post or get actions.")
+  (:method ((widget widget))))
 
 (defgeneric update-dom (widget)
   (:documentation "Updates widget slots values.
-Slots that have names that match parameter names are updated with the parameter values.")
-  (:method ((widget widget))
-    (let ((parameters (append (get-parameters *request*) (post-parameters *request*)))
-          (slots (class-slots (class-of widget))))
-      (dolist (parameter parameters)
-        (let ((slot (find (un-widgy-name widget (car parameter)) slots
-                          :key 'slot-definition-name :test #'string-equal)))
-          (when slot
-            (update-slot widget (slot-definition-name slot) (cdr parameter))))))))
+Slots that have names that match parameter names are updated with the parameter values."))
 
-(defgeneric action-handler (widget)
-  (:documentation "This method is called after the dom has been updated from parameters.
-This is the ideal place to place code that handles post or get actions.")
-  (:method ((widget widget))))
+(defun find-slot (slot-name object)
+  (find slot-name (class-slots (class-of object))
+        :key #'slot-definition-name
+        :test #'string-equal))
+
+(defmethod synq-widget-data ((widget widget))
+  (let ((parameters (append (get-parameters *request*)
+                            (post-parameters *request*))))
+    (dolist (object (data widget))
+      (when (typep object 'standard-object)
+        (loop for (key . value) in parameters
+              for slot = (find-slot key object)
+              when slot
+              do (update-slot object (slot-definition-name slot) value))))))
+
+(defmethod update-dom ((widget widget))
+  (let ((parameters (append (get-parameters *request*)
+                            (post-parameters *request*))))
+    (loop for (key . value) in parameters
+          for slot = (find-slot (un-widgy-name widget key) widget)
+          when slot
+          do (update-slot widget (slot-definition-name slot) value))))
 
 (defmacro with-debugging (&body body)
   ;; Using this as debugging tool because hunchentoot
@@ -138,41 +140,36 @@ This is the ideal place to place code that handles post or get actions.")
   `(handler-bind ((error #'invoke-debugger))
      ,@body))
 
+(defun map-dom (function dom)
+  (if (hash-table-p dom)
+      (loop for value being the hash-value of dom
+            do (map-dom function value))
+      (funcall function dom)))
+
 (defmethod handle-request :before ((*acceptor* acceptor) (*request* request))
   "Update widgets in the dom before the request is passed to handler."
   (with-debugging
-    (labels ((map-dom (function dom)
-               (if (hash-table-p dom)
-                   (loop for value being the hash-value of dom
-                         do (map-dom function value))
-                   (funcall function dom))))
-      (let ((cache (get-cache (session-name))))
-        (when cache
-          (map-dom (lambda (value)
-                     (update-dom value)
-                     (synq-widget-data value))
-                   cache)
-          (map-dom #'action-handler cache))))))
+    (let ((cache (get-cache (session-name))))
+      (map-dom (lambda (value)
+                 (update-dom value)
+                 (synq-widget-data value))
+               cache)
+      (map-dom #'action-handler cache))))
 
 (defun widget-include-bits (widget-class-instance)
   "Returns the include statements for then widget's include files."
   (when widget-class-instance
-    (dolist (include (include-bits widget-class-instance))
-      (with-html-output (*standard-output*)
+    (with-html-output (*standard-output*)
+      (dolist (include (include-bits widget-class-instance))
         (str include)))))
 
 (defun page-include-bits ()
-  (let ((cache (get-cache (session-name))))
-    (when cache
-      (loop for v being the hash-value of cache
-            do
-            (if (hash-table-p v)
-                (maphash #'(lambda (key value)
-                             (declare (ignore key))
-                             (if (string-equal (class-name (class-of (class-of value))) "widget-class")
-                                 (widget-include-bits (class-of value)))) v)
-                (if (string-equal (class-name (class-of (class-of v))) "widget-class")
-                    (widget-include-bits (class-of v))))))))
+  (map-dom
+   (lambda (value)
+     (when (string-equal (class-name (class-of (class-of value)))
+                         "widget-class")
+       (widget-include-bits (class-of value))))
+   (get-cache (session-name))))
 
 (defun get-widget (instance-name &optional group-index)
   (let* ((cache (get-cache (session-name)))
