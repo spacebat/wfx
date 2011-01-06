@@ -62,9 +62,7 @@
                    (setf (session-value "session-token") (random 10810)))))
     (format nil "~A-~A"
             token
-            (substitute #\- #\.
-                        (substitute #\- #\/
-                                    (car (split-string (request-uri*) #\?)))))))
+            (substitute #\- #\. (substitute #\- #\/ (script-name*))))))
 
 (defun make-widget (widget-class &rest args
                     &key instance-name group-index &allow-other-keys)
