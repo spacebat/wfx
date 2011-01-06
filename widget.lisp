@@ -52,36 +52,40 @@
 
 (defparameter *object-cache* (make-hash-table :test #'equal))
 
-(defun make-widget (widget-class &rest args)
+(defun get-cache (session-name)
+  (or (gethash session-name *object-cache*)
+      (setf (gethash session-name *object-cache*)
+            (make-hash-table :test 'equal))))
+
+(defun session-name ()
+  (let ((token (or (session-value "session-token")
+                   (setf (session-value "session-token") (random 10810)))))
+    (format nil "~A-~A"
+            token
+            (substitute #\- #\.
+                        (substitute #\- #\/
+                                    (car (split-string (request-uri*) #\?)))))))
+
+(defun make-widget (widget-class &rest args
+                    &key instance-name group-index &allow-other-keys)
   "This function instanciates a widget or returns the widget from the dom if it already exists.
 Each request uri has its own hashtable with widgets. The hashtable represents a simple dom.
 The dom is automatically updated before a request is passed to a hunchentoot handler."
-  (let ((instance nil)
-        (session-name)
-        (widget-name (getf args :instance-name))
-        (group-index (getf args :group-index)))
-    (unless (session-value "session-token")
-      (setf (session-value "session-token") (random 10810)))
-    (setf session-name (intern (format nil "~A-~A" (session-value "session-token")
-                                       (replace-all (replace-all (car (split-string (request-uri*) #\?)) "/" "-")  "." "-"))))
-    (unless (gethash session-name *object-cache*)
-      (setf (gethash session-name *object-cache*) (make-hash-table :test 'equal)))
-    (when (gethash session-name *object-cache*)
-      (when (gethash widget-name (gethash session-name *object-cache*))
-        (when group-index
-          (setf instance (gethash group-index (gethash widget-name (gethash session-name *object-cache*))))
-          (unless instance
-            (setf instance (apply #'make-instance widget-class args))
-            (setf (gethash group-index (gethash widget-name (gethash session-name *object-cache*))) instance)))
-        (unless group-index
-          (setf instance (gethash widget-name (gethash session-name *object-cache*)))))
-      (unless instance
-        (setf instance (apply #'make-instance widget-class args))
-        (when group-index
-          (setf (gethash widget-name (gethash session-name *object-cache*)) (make-hash-table :test 'equal))
-          (setf (gethash group-index (gethash widget-name (gethash session-name *object-cache*))) instance))
-        (unless group-index
-          (setf (gethash widget-name (gethash session-name *object-cache*)) instance))))
+  (let* ((cache (get-cache (session-name)))
+         (instance (gethash instance-name cache)))
+    (cond ((not instance)
+           (setf instance (apply #'make-instance widget-class args))
+           (if group-index
+               (setf (gethash group-index
+                              (setf (gethash instance-name cache)
+                                    (make-hash-table :test 'equal)))
+                     instance)
+               (setf (gethash instance-name cache) instance)))
+          (group-index
+           (unless (setf instance
+                         (gethash group-index instance))
+             (setf instance (apply #'make-instance widget-class args)
+                   (gethash group-index instance) instance))))
     instance))
 
 (defun get-method (name)
@@ -116,7 +120,7 @@ The dom is automatically updated before a request is passed to a hunchentoot han
 Slots that have names that match parameter names are updated with the parameter values.")
   (:method ((widget widget))
     (let ((parameters (append (get-parameters *request*) (post-parameters *request*)))
-          (slots (class-slots (class-of widget) )))
+          (slots (class-slots (class-of widget))))
       (dolist (parameter parameters)
         (let ((slot (find (un-widgy-name widget (car parameter)) slots
                           :key 'slot-definition-name :test #'string-equal)))
@@ -128,91 +132,74 @@ Slots that have names that match parameter names are updated with the parameter 
 This is the ideal place to place code that handles post or get actions.")
   (:method ((widget widget))))
 
+(defmacro with-debugging (&body body)
+  ;; Using this as debugging tool because hunchentoot
+  ;; swallows all errors here if set to swallow errors.
+  `(handler-bind ((error #'invoke-debugger))
+     ,@body))
+
 (defmethod handle-request :around ((*acceptor* acceptor) (*request* request))
   "Update widgets in the dom before the request is passed to handler."
-  ;;using this as debugging tool because hunchentoot swallows all errors here if set to swallow errors.
-  (handler-case
-      (let ((session-name (intern (format nil "~A-~A" (session-value "session-token")
-                                          (replace-all (replace-all (car (split-string (request-uri*) #\?)) "/" "-")  "." "-")))))
-        (when (gethash session-name *object-cache*)
-          (loop for v being the hash-value of (gethash session-name *object-cache*)
-                do
-                (when (hash-table-p v)
-                  (maphash
-                   #'(lambda (key val)
-                       (declare (ignore key))
-                       (update-dom val)
-                       (synq-widget-data val))
-                   v))
-                (unless (hash-table-p v)
-                  (update-dom v)
-                  (synq-widget-data v)))
-          (loop for v being the hash-value of (gethash session-name *object-cache*)
-                do
-                (when (hash-table-p v)
-                  (maphash
-                   #'(lambda (key val)
-                       (declare (ignore key))
-                       (action-handler val))
-                   v))
-                (unless (hash-table-p v)
-                  (action-handler v)))))
-    (error (e)
-      (break (format nil "handle-request :around **** ~A" e))))
+  (with-debugging
+    (let ((cache (get-cache (session-name))))
+      (when cache
+        (loop for v being the hash-value of cache
+              if (hash-table-p v)
+              do (maphash
+                  #'(lambda (key val)
+                      (declare (ignore key))
+                      (update-dom val)
+                      (synq-widget-data val))
+                  v)
+              else do
+              (update-dom v)
+              (synq-widget-data v))
+        (loop for v being the hash-value of cache
+              if (hash-table-p v)
+              do (maphash
+                  #'(lambda (key val)
+                      (declare (ignore key))
+                      (action-handler val))
+                  v)
+              else do (action-handler v)))))
   (call-next-method))
 
 (defun widget-include-bits (widget-class-instance)
   "Returns the include statements for then widget's include files."
   (when widget-class-instance
-
     (dolist (include (include-bits widget-class-instance))
-
       (with-html-output (*standard-output*)
         (str include)))))
 
 (defun page-include-bits ()
-  (let ((session-name (intern (format nil "~A-~A" (session-value "session-token")
-                                      (replace-all (replace-all (car (wfx::split-string (request-uri*) #\?)) "/" "-")  "." "-")))))
-    (when (gethash session-name *object-cache*)
-      (loop for v being the hash-value of (gethash session-name *object-cache*)
+  (let ((cache (get-cache (session-name))))
+    (when cache
+      (loop for v being the hash-value of cache
             do
-            (if (not (hash-table-p v))
-                (if (string-equal (class-name (class-of (class-of v))) "widget-class")
-                    (widget-include-bits (class-of v)))
+            (if (hash-table-p v)
                 (maphash #'(lambda (key value)
                              (declare (ignore key))
                              (if (string-equal (class-name (class-of (class-of value))) "widget-class")
-                                 (widget-include-bits (class-of value)))) v))))))
-
+                                 (widget-include-bits (class-of value)))) v)
+                (if (string-equal (class-name (class-of (class-of v))) "widget-class")
+                    (widget-include-bits (class-of v))))))))
 
 (defun get-widget (instance-name &optional group-index)
-  (let ((session-name)
-        (instance))
-    (setf session-name (intern (format nil "~A-~A" (session-value "session-token")
-                                       (replace-all (replace-all (car (split-string (request-uri*) #\?)) "/" "-")  "." "-"))))
-
-    (when (gethash session-name *object-cache*)
-      (when (gethash instance-name (gethash session-name *object-cache*))
-        (when group-index
-          (setf instance (gethash group-index (gethash instance-name (gethash session-name *object-cache*)))))
-        (unless group-index
-          (setf instance (gethash instance-name (gethash session-name *object-cache*))))))
-    instance))
+  (let* ((cache (get-cache (session-name)))
+         (instance (gethash instance-name cache)))
+    (if (and group-index instance-name)
+        (gethash group-index instance)
+        instance)))
 
 (defun set-widget (instance &key group-index )
   "This function instanciates a widget or returns the widget from the dom if it already exists.
 Each request uri has its own hashtable with widgets. The hashtable represents a simple dom.
 The dom is automatically updated before a request is passed to a hunchentoot handler."
-  (let ((session-name))
-    (unless (session-value "session-token")
-      (setf (session-value "session-token") (random 10810)))
-    (setf session-name (intern (format nil "~A-~A" (session-value "session-token")
-                                       (replace-all (replace-all (car (split-string (request-uri*) #\?)) "/" "-")  "." "-"))))
-    (unless (gethash session-name *object-cache*)
-      (setf (gethash session-name *object-cache*) (make-hash-table :test 'equal)))
-    (when group-index
-      (setf (gethash (instance-name instance) (gethash session-name *object-cache*)) (make-hash-table :test 'equal))
-      (setf (gethash group-index (gethash (instance-name instance) (gethash session-name *object-cache*))) instance))
-    (unless group-index
-      (setf (gethash (instance-name instance) (gethash session-name *object-cache*)) instance))
+  (let ((cache (get-cache (session-name))))
+    (if group-index
+        (setf (gethash (instance-name instance) cache)
+              (make-hash-table :test 'equal)
+              (gethash group-index (gethash (instance-name instance) cache))
+              instance)
+        (setf (gethash (instance-name instance) cache) instance))
     instance))
