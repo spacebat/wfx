@@ -11,7 +11,7 @@
   (with-html-output-to-string (*standard-output*)     
     (:form :action "" :method "post" :name "simple_post"
 	   (:input :type "text" 
-		   :name (wfx::widgy-name (wfx::instance-name instance) "simple-property") 
+		   :name (wfx::widgy-name instance "simple-property") 
 		   :value (if (slot-boundp instance 'simple-property)
 			      (str (slot-value instance 'simple-property))
 			      ""))
@@ -53,7 +53,7 @@
   (with-html-output-to-string (*standard-output*)     
     (:form :action \"\" :method \"post\" :name \"simple_post\"
 	   (:input :type \"text\" 
-		   :name (widgy-name (name widget) \"simple-property\") 
+		   :name (widgy-name widget \"simple-property\") 
 		   :value (if (slot-boundp widget 'simple-property)
 			      (str (slot-value widget 'simple-property))
 			      \"\"))
