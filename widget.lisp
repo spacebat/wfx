@@ -138,31 +138,21 @@ This is the ideal place to place code that handles post or get actions.")
   `(handler-bind ((error #'invoke-debugger))
      ,@body))
 
-(defmethod handle-request :around ((*acceptor* acceptor) (*request* request))
+(defmethod handle-request :before ((*acceptor* acceptor) (*request* request))
   "Update widgets in the dom before the request is passed to handler."
   (with-debugging
-    (let ((cache (get-cache (session-name))))
-      (when cache
-        (loop for v being the hash-value of cache
-              if (hash-table-p v)
-              do (maphash
-                  #'(lambda (key val)
-                      (declare (ignore key))
-                      (update-dom val)
-                      (synq-widget-data val))
-                  v)
-              else do
-              (update-dom v)
-              (synq-widget-data v))
-        (loop for v being the hash-value of cache
-              if (hash-table-p v)
-              do (maphash
-                  #'(lambda (key val)
-                      (declare (ignore key))
-                      (action-handler val))
-                  v)
-              else do (action-handler v)))))
-  (call-next-method))
+    (labels ((map-dom (function dom)
+               (if (hash-table-p dom)
+                   (loop for value being the hash-value of dom
+                         do (map-dom function value))
+                   (funcall function dom))))
+      (let ((cache (get-cache (session-name))))
+        (when cache
+          (map-dom (lambda (value)
+                     (update-dom value)
+                     (synq-widget-data value))
+                   cache)
+          (map-dom #'action-handler cache))))))
 
 (defun widget-include-bits (widget-class-instance)
   "Returns the include statements for then widget's include files."
