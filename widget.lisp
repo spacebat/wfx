@@ -26,9 +26,9 @@
           :accessor style)))
 
 (defclass widget ()
-  ((instance-name :initarg :instance-name
+  ((name :initarg :name
                   :initform nil
-                  :accessor instance-name)
+                  :accessor name)
    (group-index :initarg :group-index
                 :initform nil :accessor group-index)
    (data :initarg :data
@@ -39,10 +39,10 @@
   (:documentation "Renders a widget."))
 
 (defun widgy-name (instance name)
-  (format nil "~A_~A" (replace-all (instance-name instance) "-" "_") name))
+  (format nil "~A_~A" (replace-all (name instance) "-" "_") name))
 
 (defun un-widgy-name (instance name)
-  (replace-all name (format nil "~A_" (replace-all (instance-name instance) "-" "_")) ""))
+  (replace-all name (format nil "~A_" (replace-all (name instance) "-" "_")) ""))
 
 (defun get-slot (instance slot-name)
   (if (slot-boundp instance slot-name)
@@ -65,20 +65,20 @@
             (substitute #\- #\. (substitute #\- #\/ (script-name*))))))
 
 (defun make-widget (widget-class &rest args
-                    &key instance-name group-index &allow-other-keys)
+                    &key name group-index &allow-other-keys)
   "This function instanciates a widget or returns the widget from the dom if it already exists.
 Each request uri has its own hashtable with widgets. The hashtable represents a simple dom.
 The dom is automatically updated before a request is passed to a hunchentoot handler."
   (let* ((cache (get-cache (session-name)))
-         (instance (gethash instance-name cache)))
+         (instance (gethash name cache)))
     (cond ((not instance)
            (setf instance (apply #'make-instance widget-class args))
            (if group-index
                (setf (gethash group-index
-                              (setf (gethash instance-name cache)
+                              (setf (gethash name cache)
                                     (make-hash-table :test 'equal)))
                      instance)
-               (setf (gethash instance-name cache) instance)))
+               (setf (gethash name cache) instance)))
           (group-index
            (unless (setf instance
                          (gethash group-index instance))
@@ -169,10 +169,10 @@ Slots that have names that match parameter names are updated with the parameter 
        (widget-include-bits (class-of value))))
    (get-cache (session-name))))
 
-(defun get-widget (instance-name &optional group-index)
+(defun get-widget (name &optional group-index)
   (let* ((cache (get-cache (session-name)))
-         (instance (gethash instance-name cache)))
-    (if (and group-index instance-name)
+         (instance (gethash name cache)))
+    (if (and group-index name)
         (gethash group-index instance)
         instance)))
 
@@ -182,9 +182,9 @@ Each request uri has its own hashtable with widgets. The hashtable represents a 
 The dom is automatically updated before a request is passed to a hunchentoot handler."
   (let ((cache (get-cache (session-name))))
     (if group-index
-        (setf (gethash (instance-name instance) cache)
+        (setf (gethash (name instance) cache)
               (make-hash-table :test 'equal)
-              (gethash group-index (gethash (instance-name instance) cache))
+              (gethash group-index (gethash (name instance) cache))
               instance)
-        (setf (gethash (instance-name instance) cache) instance))
+        (setf (gethash (name instance) cache) instance))
     instance))
