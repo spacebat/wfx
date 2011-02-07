@@ -27,8 +27,8 @@
 
 (defclass widget ()
   ((name :initarg :name
-                  :initform nil
-                  :accessor name)
+         :initform nil
+         :accessor name)
    (group-index :initarg :group-index
                 :initform nil :accessor group-index)
    (data :initarg :data
@@ -50,26 +50,24 @@
 
 ;;;;
 
-(defparameter *object-cache* (make-hash-table :test #'equal))
-
-(defun get-cache (session-name)
-  (or (gethash session-name *object-cache*)
-      (setf (gethash session-name *object-cache*)
+(defun session-cache ()
+  (or (session-value 'cache)
+      (setf (session-value 'cache)
             (make-hash-table :test 'equal))))
 
-(defun session-name ()
-  (let ((token (or (session-value "session-token")
-                   (setf (session-value "session-token") (random 10810)))))
-    (format nil "~A-~A"
-            token
-            (substitute #\- #\. (substitute #\- #\/ (script-name*))))))
+(defun cache ()
+  (let ((session-cache (session-cache))
+        (name (script-name*)))
+    (or (gethash name session-cache)
+        (setf (gethash name session-cache)
+              (make-hash-table :test 'equal)))))
 
 (defun make-widget (widget-class &rest args
                     &key name group-index &allow-other-keys)
   "This function instanciates a widget or returns the widget from the dom if it already exists.
 Each request uri has its own hashtable with widgets. The hashtable represents a simple dom.
 The dom is automatically updated before a request is passed to a hunchentoot handler."
-  (let* ((cache (get-cache (session-name)))
+  (let* ((cache (cache))
          (instance (gethash name cache)))
     (cond ((not instance)
            (setf instance (apply #'make-instance widget-class args))
@@ -147,7 +145,7 @@ Slots that have names that match parameter names are updated with the parameter 
 (defmethod handle-request :before ((*acceptor* acceptor) (*request* request))
   "Update widgets in the dom before the request is passed to handler."
   (with-debugging
-    (let ((cache (get-cache (session-name))))
+    (let ((cache (cache)))
       (map-dom (lambda (value)
                  (update-dom value)
                  (synq-widget-data value))
@@ -167,10 +165,10 @@ Slots that have names that match parameter names are updated with the parameter 
      (when (string-equal (class-name (class-of (class-of value)))
                          "widget-class")
        (widget-include-bits (class-of value))))
-   (get-cache (session-name))))
+   (cache)))
 
 (defun get-widget (name &optional group-index)
-  (let* ((cache (get-cache (session-name)))
+  (let* ((cache (cache))
          (instance (gethash name cache)))
     (if (and group-index name)
         (gethash group-index instance)
@@ -180,7 +178,7 @@ Slots that have names that match parameter names are updated with the parameter 
   "This function instanciates a widget or returns the widget from the dom if it already exists.
 Each request uri has its own hashtable with widgets. The hashtable represents a simple dom.
 The dom is automatically updated before a request is passed to a hunchentoot handler."
-  (let ((cache (get-cache (session-name))))
+  (let ((cache (cache)))
     (if group-index
         (setf (gethash (name instance) cache)
               (make-hash-table :test 'equal)
