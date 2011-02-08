@@ -155,15 +155,12 @@ Slots that have names that match parameter names are updated with the parameter 
 (defun widget-include-bits (widget-class-instance)
   "Returns the include statements for then widget's include files."
   (when widget-class-instance
-    (with-html-output (*standard-output*)
-      (dolist (include (include-bits widget-class-instance))
-        (str include)))))
+    (map nil #'princ (include-bits widget-class-instance))))
 
 (defun page-include-bits ()
   (map-dom
    (lambda (value)
-     (when (string-equal (class-name (class-of (class-of value)))
-                         "widget-class")
+     (when (subtypep (class-of (class-of value)) 'widget-class)
        (widget-include-bits (class-of value))))
    (cache)))
 
