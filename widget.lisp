@@ -39,7 +39,9 @@
   (:documentation "Renders a widget."))
 
 (defun widgy-name (instance name)
-  (format nil "~A_~A" (replace-all (name instance) "-" "_") name))
+  (format nil "~A_~A"
+          (replace-all (name instance) "-" "_")
+          (replace-all name "-" "_")))
 
 (defun un-widgy-name (instance name)
   (replace-all name (format nil "~A_" (replace-all (name instance) "-" "_")) ""))
