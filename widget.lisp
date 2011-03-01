@@ -64,6 +64,20 @@
         (setf (gethash name session-cache)
               (make-hash-table :test 'equal)))))
 
+(defun dom ()
+  (or (session-value 'dom)
+      (setf (session-value 'dom)
+            nil)))
+
+(defun (setf dom) (value)
+  (setf (session-value 'dom) value))
+
+(defun arrange-dom (new-instance)
+  (with-slots (parent) new-instance
+    (if parent
+        (push new-instance (children parent))
+        (push new-instance (dom)))))
+
 (defun make-widget (widget-class &rest args
                     &key name group-index &allow-other-keys)
   "This function instanciates a widget or returns the widget from the dom if it already exists.
@@ -127,10 +141,11 @@ Slots that have names that match parameter names are updated with the parameter 
 (defmethod update-dom ((widget widget))
   (let ((parameters (append (get-parameters *request*)
                             (post-parameters *request*))))
-    (loop for (key . value) in parameters
-          for slot = (find-slot (un-widgy-name widget key) widget)
-          when slot
-          do (update-slot widget (slot-definition-name slot) value))))
+    (when (name widget)
+     (loop for (key . value) in parameters
+           for slot = (find-slot (un-widgy-name widget key) widget)
+           when slot
+           do (update-slot widget (slot-definition-name slot) value)))))
 
 (defmacro with-debugging (&body body)
   ;; Using this as debugging tool because hunchentoot
@@ -138,21 +153,21 @@ Slots that have names that match parameter names are updated with the parameter 
   `(handler-bind ((error #'invoke-debugger))
      ,@body))
 
-(defun map-dom (function dom)
-  (if (hash-table-p dom)
-      (loop for value being the hash-value of dom
-            do (map-dom function value))
-      (funcall function dom)))
+(defun map-dom (function)
+  (map nil function
+       (dom)))
+
+(defmethod render :before ((widget widget) &key)
+  (pushnew widget (dom)))
 
 (defmethod handle-request :before ((*acceptor* acceptor) (*request* request))
   "Update widgets in the dom before the request is passed to handler."
   (with-debugging
-    (let ((cache (cache)))
-      (map-dom (lambda (value)
-                 (update-dom value)
-                 (synq-widget-data value))
-               cache)
-      (map-dom #'action-handler cache))))
+    (map-dom (lambda (value)
+               (update-dom value)
+               (synq-widget-data value)))
+    (map-dom #'action-handler)
+    (setf (dom) ())))
 
 (defun widget-include-bits (widget-class-instance)
   "Returns the include statements for then widget's include files."
@@ -163,8 +178,7 @@ Slots that have names that match parameter names are updated with the parameter 
   (map-dom
    (lambda (value)
      (when (subtypep (class-of (class-of value)) 'widget-class)
-       (widget-include-bits (class-of value))))
-   (cache)))
+       (widget-include-bits (class-of value))))))
 
 (defun get-widget (name &optional group-index)
   (let* ((cache (cache))
