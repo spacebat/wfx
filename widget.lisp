@@ -78,6 +78,10 @@
       (setf (session-value 'cache)
             (make-hash-table :test 'equal))))
 
+
+(defun clear-cache ()
+  (setf (session-value 'cache) nil))
+
 (defun cache ()
   (let ((session-cache (session-cache))
         (name (script-name*)))
@@ -137,8 +141,6 @@ This is the ideal place to place code that handles post or get actions.")
 (defgeneric update-dom (widget)
   (:documentation "Updates widget slots values.
 Slots that have names that match parameter names are updated with the parameter values."))
-
-
 
 (defmethod synq-widget-data ((widget widget))
   (let ((parameters (append (get-parameters *request*)
