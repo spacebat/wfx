@@ -89,13 +89,16 @@
         (setf (gethash name session-cache)
               (make-hash-table :test 'equal)))))
 
+(defun doms ()
+  (or (session-value 'doms)
+      (setf (session-value 'doms)
+            (make-hash-table :test 'equal))))
 (defun dom ()
-  (or (session-value 'dom)
-      (setf (session-value 'dom)
-            nil)))
+  (gethash (script-name*) (doms)))
 
 (defun (setf dom) (value)
-  (setf (session-value 'dom) value))
+  (setf (gethash (script-name*) (doms))
+        value))
 
 (defun make-widget (widget-class &rest args
                     &key name group-index &allow-other-keys)
