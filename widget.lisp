@@ -105,10 +105,11 @@
   "This function instanciates a widget or returns the widget from the dom if it already exists.
 Each request uri has its own hashtable with widgets. The hashtable represents a simple dom.
 The dom is automatically updated before a request is passed to a hunchentoot handler."
-  (let* ((name (or name (class-name
-                         (etypecase widget-class
-                           (symbol (find-class widget-class))
-                           (class widget-class)))))
+  (let* ((class-name (class-name
+                      (etypecase widget-class
+                        (symbol (find-class widget-class))
+                        (class widget-class))))
+         (name (format nil "~a~@[-~a~]" class-name name))
          (cache (cache))
          (instance (gethash name cache)))
     (cond ((not instance)
