@@ -82,11 +82,10 @@
 (defun clear-cache ()
   (setf (session-value 'cache) nil))
 
-(defun cache ()
-  (let ((session-cache (session-cache))
-        (name (script-name*)))
-    (or (gethash name session-cache)
-        (setf (gethash name session-cache)
+(defun cache (&key (script-name (script-name*)))
+  (let ((session-cache (session-cache)))
+    (or (gethash script-name session-cache)
+        (setf (gethash script-name session-cache)
               (make-hash-table :test 'equal)))))
 
 (defun doms ()
@@ -113,7 +112,8 @@ The dom is automatically updated before a request is passed to a hunchentoot han
          (cache (cache))
          (instance (gethash name cache)))
     (cond ((not instance)
-           (setf instance (apply #'make-instance widget-class args))
+           (setf instance (apply #'make-instance widget-class
+                                 :name name args))
            (if group-index
                (setf (gethash group-index
                               (setf (gethash name cache)
@@ -202,8 +202,8 @@ Slots that have names that match parameter names are updated with the parameter 
      (when (subtypep (class-of (class-of value)) 'widget-class)
        (widget-include-bits (class-of value))))))
 
-(defun get-widget (name &optional group-index)
-  (let* ((cache (cache))
+(defun get-widget (name &key group-index script-name)
+  (let* ((cache (cache :script-name script-name))
          (instance (gethash name cache)))
     (if (and group-index name)
         (gethash group-index instance)
