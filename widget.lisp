@@ -82,8 +82,9 @@
 (defun clear-cache ()
   (setf (session-value 'cache) nil))
 
-(defun cache (&key (script-name (script-name*)))
-  (let ((session-cache (session-cache)))
+(defun cache (&key script-name)
+  (let ((script-name (or script-name (script-name*)))
+	(session-cache (session-cache)))
     (or (gethash script-name session-cache)
         (setf (gethash script-name session-cache)
               (make-hash-table :test 'equal)))))
