@@ -100,27 +100,32 @@
   (setf (gethash (script-name*) (doms))
         value))
 
+(defun type-name (widget-class name)
+  (let* ((class-name (class-name
+                      (etypecase widget-class
+                        (symbol (find-class widget-class))
+                        (class widget-class))))
+         (internal-name (format nil "~a~@[-~a~]" class-name name)))
+    internal-name))
+
 (defun make-widget (widget-class &rest args
                     &key name group-index &allow-other-keys)
   "This function instanciates a widget or returns the widget from the dom if it already exists.
 Each request uri has its own hashtable with widgets. The hashtable represents a simple dom.
 The dom is automatically updated before a request is passed to a hunchentoot handler."
-  (let* ((class-name (class-name
-                      (etypecase widget-class
-                        (symbol (find-class widget-class))
-                        (class widget-class))))
-         (name (format nil "~a~@[-~a~]" class-name name))
+  (let* ((internal-name (type-name widget-class name))
          (cache (cache))
-         (instance (gethash name cache)))
+         (instance (gethash internal-name cache)))
+
     (cond ((not instance)
            (setf instance (apply #'make-instance widget-class
                                  :name name args))
            (if group-index
                (setf (gethash group-index
-                              (setf (gethash name cache)
+                              (setf (gethash internal-name cache)
                                     (make-hash-table :test 'equal)))
                      instance)
-               (setf (gethash name cache) instance)))
+               (setf (gethash internal-name cache) instance)))
           (group-index
            (unless (setf instance
                          (gethash group-index instance))
@@ -203,22 +208,27 @@ Slots that have names that match parameter names are updated with the parameter 
      (when (subtypep (class-of (class-of value)) 'widget-class)
        (widget-include-bits (class-of value))))))
 
-(defun get-widget (name &key group-index script-name)
-  (let* ((cache (cache :script-name script-name))
-         (instance (gethash name cache)))
-    (if (and group-index name)
+(defun get-widget (name &key widget-class group-index script-name)
+  (let* ((internal-name (if widget-class
+                            (type-name widget-class name)
+                            name))
+         (cache (cache :script-name script-name))
+         (instance (gethash internal-name cache)))
+    (if (and group-index internal-name)
         (gethash group-index instance)
         instance)))
+
 
 (defun set-widget (instance &key group-index )
   "This function instanciates a widget or returns the widget from the dom if it already exists.
 Each request uri has its own hashtable with widgets. The hashtable represents a simple dom.
 The dom is automatically updated before a request is passed to a hunchentoot handler."
-  (let ((cache (cache)))
+  (let ((cache (cache))
+        (name (type-name (class-of instance) (name instance))))
     (if group-index
-        (setf (gethash (name instance) cache)
+        (setf (gethash name cache)
               (make-hash-table :test 'equal)
-              (gethash group-index (gethash (name instance) cache))
+              (gethash group-index (gethash name cache))
               instance)
-        (setf (gethash (name instance) cache) instance))
+        (setf (gethash name cache) instance))
     instance))
