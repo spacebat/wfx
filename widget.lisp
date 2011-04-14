@@ -137,7 +137,7 @@ The dom is automatically updated before a request is passed to a hunchentoot han
   (let* ((name (list 'setf slot-name))
 	 (generic-function (and (fboundp name)
 				(fdefinition name))))
-    (when (and generic-function
+    (when (and (typep generic-function 'generic-function)
 	       (compute-applicable-methods generic-function
 					   (list t (class-of object))))
       generic-function)))
