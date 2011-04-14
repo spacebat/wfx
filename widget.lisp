@@ -141,9 +141,10 @@ The dom is automatically updated before a request is passed to a hunchentoot han
 
 (defun update-slot (instance slot-name value)
   (let ((method (get-method slot-name)))
-    (if method
-        (funcall method value instance)
-        (setf (slot-value instance slot-name) value))))
+    (when method
+      (funcall method value instance))
+    (unless method
+     (setf (slot-value instance slot-name) value))))
 
 (defgeneric synq-widget-data (widget))
 
@@ -164,7 +165,7 @@ Slots that have names that match parameter names are updated with the parameter 
         (loop for (key . value) in parameters
               for slot = (find-slot key object)
               when slot
-              do (update-slot object (slot-definition-name slot) value))))))
+              do (update-slot object slot value))))))
 
 (defmethod update-dom ((widget widget))
   (let ((parameters (append (get-parameters *request*)
