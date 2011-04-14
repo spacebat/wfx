@@ -133,18 +133,20 @@ The dom is automatically updated before a request is passed to a hunchentoot han
                    (gethash group-index instance) instance))))
     instance))
 
-(defun get-method (name)
-  (when (fboundp name)
-    (let ((generic-function (fdefinition (list 'setf name))))
-      (when generic-function
-        (compute-discriminating-function generic-function)))))
+(defun get-slot-setf-method (object slot-name)
+  (let* ((name (list 'setf slot-name))
+	 (generic-function (and (fboundp name)
+				(fdefinition name))))
+    (when (and generic-function
+	       (compute-applicable-methods generic-function
+					   (list t (class-of object))))
+      generic-function)))
 
 (defun update-slot (instance slot-name value)
-  (let ((method (get-method slot-name)))
-    (when method
-      (funcall method value instance))
-    (unless method
-     (setf (slot-value instance slot-name) value))))
+  (let ((method (get-slot-setf-method instance slot-name)))
+    (if method
+	(funcall method value instance)
+	(setf (slot-value instance slot-name) value))))
 
 (defgeneric synq-widget-data (widget))
 
