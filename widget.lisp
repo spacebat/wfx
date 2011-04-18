@@ -112,7 +112,7 @@ Each request uri has its own hashtable with widgets. The hashtable represents a 
 The dom is automatically updated before a request is passed to a hunchentoot handler."
   (let* ((class (widget-class widget-class))
 	 (name (or name
-		   (string-downcase (class-name widget-class))))
+		   (string-downcase (class-name class))))
          (cache (cache))
          (instance (gethash name cache)))
     (cond ((not instance)
@@ -222,13 +222,12 @@ Slots that have names that match parameter names are updated with the parameter 
         (gethash group-index instance)
         instance)))
 
-
 (defun set-widget (instance &key group-index)
   "This function instanciates a widget or returns the widget from the dom if it already exists.
 Each request uri has its own hashtable with widgets. The hashtable represents a simple dom.
 The dom is automatically updated before a request is passed to a hunchentoot handler."
   (let ((cache (cache))
-        (name (type-name (class-of instance) (name instance))))
+        (name (name instance)))
     (if group-index
         (setf (gethash name cache)
               (make-hash-table :test 'equal)
