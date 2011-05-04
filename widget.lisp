@@ -64,7 +64,7 @@
 
 (defun un-widgy-name (instance name)
   (multiple-value-bind (widget-name slot-name) (parse-name name)
-    (when (equal widget-name (name instance))
+    (when (equal widget-name (name instance) )
       (find-slot slot-name instance))))
 
 (defun get-slot (instance slot-name)
@@ -177,10 +177,12 @@ Slots that have names that match parameter names are updated with the parameter 
   (let ((parameters (append (get-parameters *request*)
                             (post-parameters *request*))))
     (when (name widget)
+
       (loop for (key . value) in parameters
-            for slot = (un-widgy-name widget key)
-            when slot
-            do (update-slot widget slot value)))))
+         for slot = (un-widgy-name widget key)
+         when slot
+         do (update-slot widget slot value)
+         ))))
 
 (defmacro with-debugging (&body body)
   ;; Using this as debugging tool because hunchentoot
