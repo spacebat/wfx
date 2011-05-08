@@ -138,7 +138,7 @@ The dom is automatically updated before a request is passed to a hunchentoot han
                  (class-name class))
         (replace-widget ()
           :report "Replace old widget"
-          (setf (gethash instance cache) nil)
+          (setf (gethash name cache) nil)
           (apply #'make-instance widget-class args))))
     instance))
 
