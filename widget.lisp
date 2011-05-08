@@ -150,18 +150,18 @@ The dom is automatically updated before a request is passed to a hunchentoot han
                          (gethash group-index instance))
              (setf instance (apply #'make-instance widget-class args)
                    (gethash group-index instance) instance))))
-    (when (and instance
-               (not (eq (class-of instance) class)))
-      (restart-case
-          (error "Widget \"~a\" of class ~a already exist. Requested ~a class."
-                 (name instance)
-                 (class-name (class-of instance))
-                 (class-name class))
-        (replace-widget ()
-          :report "Replace old widget"
-          (setf (gethash name cache) nil)
-          (apply #'make-instance widget-class args))))
-    instance))
+    (if (and instance
+	     (not (eq (class-of instance) class)))
+	(restart-case
+	    (error "Widget \"~a\" of class ~a already exist. Requested ~a class."
+		   (name instance)
+		   (class-name (class-of instance))
+		   (class-name class))
+	  (replace-widget ()
+	    :report "Replace old widget"
+	    (setf (gethash name cache) nil)
+	    (apply #'make-instance widget-class args)))
+	instance)))
 
 (defun get-slot-setf-method (object slot-name)
   (let* ((name (list 'setf slot-name))
