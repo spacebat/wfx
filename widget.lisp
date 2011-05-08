@@ -64,7 +64,7 @@
 
 (defun un-widgy-name (instance name)
   (multiple-value-bind (widget-name slot-name) (parse-name name)
-    (when (equal widget-name (name instance) )
+    (when (equal widget-name (name instance))
       (find-slot slot-name instance))))
 
 (defun get-slot (instance slot-name)
@@ -84,7 +84,7 @@
 
 (defun cache (&key script-name)
   (let ((script-name (or script-name (script-name*)))
-	(session-cache (session-cache)))
+        (session-cache (session-cache)))
     (or (gethash script-name session-cache)
         (setf (gethash script-name session-cache)
               (make-hash-table :test 'equal)))))
@@ -111,12 +111,12 @@
 Each request uri has its own hashtable with widgets. The hashtable represents a simple dom.
 The dom is automatically updated before a request is passed to a hunchentoot handler."
   (let* ((class (widget-class widget-class))
-	 (name (or name
-		   (string-downcase (class-name class))))
+         (name (or name
+                   (string-downcase (class-name class))))
          (cache (cache))
          (instance (gethash name cache)))
     (cond ((not instance)
-           (setf instance (apply #'make-instance widget-class
+           (setf instance (apply #'make-instance class
                                  :name name args))
            (if group-index
                (setf (gethash group-index
@@ -130,27 +130,32 @@ The dom is automatically updated before a request is passed to a hunchentoot han
              (setf instance (apply #'make-instance widget-class args)
                    (gethash group-index instance) instance))))
     (when (and instance
-	       (not (eq (class-of instance) class)))
-      (error "Widget \"~a\" of class ~a already exist. Requested ~a class." 
-	     (name instance)
-	     (class-name (class-of instance))
-	     (class-name class)))
+               (not (eq (class-of instance) class)))
+      (restart-case
+          (error "Widget \"~a\" of class ~a already exist. Requested ~a class."
+                 (name instance)
+                 (class-name (class-of instance))
+                 (class-name class))
+        (replace-widget ()
+          :report "Replace old widget"
+          (setf (gethash instance cache) nil)
+          (apply #'make-instance widget-class args))))
     instance))
 
 (defun get-slot-setf-method (object slot-name)
   (let* ((name (list 'setf slot-name))
-	 (generic-function (and (fboundp name)
-				(fdefinition name))))
+         (generic-function (and (fboundp name)
+                                (fdefinition name))))
     (when (and (typep generic-function 'generic-function)
-	       (compute-applicable-methods generic-function
-					   (list t (class-of object))))
+               (compute-applicable-methods generic-function
+                                           (list t (class-of object))))
       generic-function)))
 
 (defun update-slot (instance slot-name value)
   (let ((method (get-slot-setf-method instance slot-name)))
     (if method
-	(funcall method value instance)
-	(setf (slot-value instance slot-name) value))))
+        (funcall method value instance)
+        (setf (slot-value instance slot-name) value))))
 
 (defgeneric synq-widget-data (widget))
 
@@ -177,12 +182,10 @@ Slots that have names that match parameter names are updated with the parameter 
   (let ((parameters (append (get-parameters *request*)
                             (post-parameters *request*))))
     (when (name widget)
-
       (loop for (key . value) in parameters
-         for slot = (un-widgy-name widget key)
-         when slot
-         do (update-slot widget slot value)
-         ))))
+            for slot = (un-widgy-name widget key)
+            when slot
+            do (update-slot widget slot value)))))
 
 (defmacro with-debugging (&body body)
   ;; Using this as debugging tool because hunchentoot
