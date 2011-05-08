@@ -1,7 +1,9 @@
 (in-package :wfx)
 
 (defclass widget-class (standard-class)
-  ((include-bits :initarg :include-bits :initform nil :accessor include-bits))
+  ((include-bits :initarg :include-bits
+		 :initform nil
+		 :accessor include-bits))
   (:documentation "Meta class for widgets."))
 
 (defmethod validate-superclass ((class widget-class)
@@ -11,6 +13,25 @@
 (defmethod validate-superclass ((superclass standard-class)
                                 (class widget-class))
   t)
+
+(defun all-widget-superclasses (class)
+  (labels ((all-superclasses (class)
+             (cons class
+                   (loop for super in (class-direct-superclasses class)
+			 when (typep super 'widget-class)
+			 append (all-superclasses super)))))
+    (all-superclasses class)))
+
+(defun propage-include-bits (class)
+  (setf (include-bits class)
+	(alexandria:mappend #'include-bits
+			    (all-widget-superclasses class))))
+
+(defmethod initialize-instance :after ((class widget-class) &key)
+  (propage-include-bits class))
+
+(defmethod reinitialize-instance :after ((class widget-class) &key)
+  (propage-include-bits class))
 
 (defclass html-element ()
   ((name :initarg :name
