@@ -17,6 +17,7 @@
    :page-include-bits
    :get-widget
    :set-widget
-   :find-slot))
+   :find-slot
+   :data))
 
 
