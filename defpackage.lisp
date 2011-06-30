@@ -18,6 +18,8 @@
    :get-widget
    :set-widget
    :find-slot
-   :data))
+   :data
+   :css-class
+   :style))
 
 
