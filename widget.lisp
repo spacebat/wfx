@@ -3,7 +3,13 @@
 (defclass widget-class (standard-class)
   ((include-bits :initarg :include-bits
 		 :initform nil
-		 :accessor include-bits))
+		 :accessor include-bits)
+   (include-js :initarg :include-js
+               :initform nil
+               :accessor include-js)
+   (include-css :initarg :include-css
+               :initform nil
+               :accessor include-css))
   (:documentation "Meta class for widgets."))
 
 (defmethod validate-superclass ((class widget-class)
@@ -23,9 +29,13 @@
     (all-superclasses class)))
 
 (defun propage-include-bits (class)
-  (setf (include-bits class)
-	(alexandria:mappend #'include-bits
-			    (all-widget-superclasses class))))
+  (let ((superclasses (all-widget-superclasses class)))
+    (setf (include-bits class)
+          (alexandria:mappend #'include-bits superclasses))
+    (setf (include-js class)
+          (alexandria:mappend #'include-js superclasses))
+    (setf (include-css class)
+          (alexandria:mappend #'include-css superclasses))))
 
 (defmethod initialize-instance :after ((class widget-class) &key)
   (propage-include-bits class))
@@ -230,9 +240,19 @@ Slots that have names that match parameter names are updated with the parameter 
     (map-dom #'action-handler)
     (setf (dom) ())))
 
+(defun js-inclusion-string (path)
+  (format nil "<script type='text/javascript' src='~a'></script>" path))
+
+(defun css-inclusion-string (path)
+  (format nil "<link href='~a' rel='stylesheet' type='text/css' />" path))
+
 (defun widget-include-bits (widget-class-instance)
   "Returns the include statements for then widget's include files."
   (when widget-class-instance
+    (loop for css in (include-css widget-class-instance)
+          do (princ (css-inclusion-string css)))
+    (loop for js in (include-js widget-class-instance)
+          do (princ (js-inclusion-string js)))
     (map nil #'princ (include-bits widget-class-instance))))
 
 (defun page-include-bits ()
