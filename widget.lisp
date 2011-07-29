@@ -56,15 +56,18 @@
           :initform nil
           :accessor style)))
 
+;;; Prefix slots with % so that the subclasses don't get mixed up when using
+;;; the same slot names.
 (defclass widget ()
-  ((name :initarg :name
-         :initform nil
-         :accessor name)
-   (group-index :initarg :group-index
-                :initform nil :accessor group-index)
-   (data :initarg :data
-         :initform nil
-         :accessor data)))
+  ((%name :initarg :name
+          :initform nil
+          :accessor name)
+   (%group-index :initarg :group-index
+                 :initform nil
+                 :accessor group-index)
+   (%data :initarg :data
+          :initform nil
+          :accessor data)))
 
 (defgeneric render (widget &rest named-pairs &key &allow-other-keys)
   (:documentation "Renders a widget."))
@@ -108,7 +111,6 @@
   (or (session-value 'cache)
       (setf (session-value 'cache)
             (make-hash-table :test 'equal))))
-
 
 (defun clear-cache ()
   (setf (session-value 'cache) nil))
@@ -173,14 +175,23 @@ The dom is automatically updated before a request is passed to a hunchentoot han
 	    (apply #'make-instance widget-class args)))
 	instance)))
 
+(defun find-direct-slot-definition (class slot-name)
+  (labels ((find-slot (class)
+             (or (find slot-name (class-direct-slots class)
+                       :key #'slot-definition-name)
+                 (some #'find-slot (class-direct-superclasses class)))))
+    (find-slot class)))
+
+(defun find-slot-writer (class slot-name)
+  (let ((slot (find-direct-slot-definition class slot-name)))
+    (and slot
+         (car (slot-definition-writers slot)))))
+
 (defun get-slot-setf-method (object slot-name)
-  (let* ((name (list 'setf slot-name))
-         (generic-function (and (fboundp name)
-                                (fdefinition name))))
-    (when (and (typep generic-function 'generic-function)
-               (compute-applicable-methods generic-function
-                                           (list t (class-of object))))
-      generic-function)))
+  (let ((writer (find-slot-writer (class-of object)
+                                  slot-name)))
+    (when writer
+      (fdefinition writer))))
 
 (defun update-slot (instance slot-name value)
   (let ((method (get-slot-setf-method instance slot-name)))
