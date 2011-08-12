@@ -73,10 +73,10 @@
   (:documentation "Renders a widget."))
 
 (defun to-html (string)
-  (ppcre:regex-replace "-" string "_"))
+  (ppcre:regex-replace-all "-" string "_"))
 
 (defun from-html (string)
-  (ppcre:regex-replace  "_" string "-"))
+  (ppcre:regex-replace-all "_" string "-"))
 
 (defun widgy-name (instance slot-name)
   (format nil "~A.~A"
