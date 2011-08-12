@@ -20,6 +20,8 @@
    :find-slot
    :data
    :css-class
-   :style))
+   :style
+   :to-html
+   :from-html))
 
 
