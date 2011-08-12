@@ -9,5 +9,4 @@
   :serial t
   :components ((:file "defpackage")
                (:file "ini")
-               (:file "common")
                (:file "widget")))
