@@ -1,8 +1,7 @@
 (in-package :common-lisp-user)
 
 (defpackage :wfx
-  (:nicknames :wfx)
-  (:use :cl :sb-mop :hunchentoot :cl-who :s-sql :date-calc)
+  (:use :c2cl hunchentoot)
   (:export
    :widget-class
    :widget
