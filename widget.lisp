@@ -246,8 +246,9 @@ Slots that have names that match parameter names are updated with the parameter 
   "Update widgets in the dom before the request is passed to handler."
   (with-debugging
     (map-dom #'update-dom)
-    (map-dom #'action-handler)
     (map-dom #'synq-widget-data)
+    (map-dom #'action-handler)
+    
     (setf (dom) ())))
 
 (defun js-inclusion-string (path)
