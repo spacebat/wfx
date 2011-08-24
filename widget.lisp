@@ -245,10 +245,9 @@ Slots that have names that match parameter names are updated with the parameter 
 (defmethod handle-request :before ((*acceptor* acceptor) (*request* request))
   "Update widgets in the dom before the request is passed to handler."
   (with-debugging
-    (map-dom (lambda (value)
-               (update-dom value)
-               (synq-widget-data value)))
+    (map-dom #'update-dom)
     (map-dom #'action-handler)
+    (map-dom #'synq-widget-data)
     (setf (dom) ())))
 
 (defun js-inclusion-string (path)
