@@ -69,6 +69,12 @@
           :initform nil
           :accessor data)))
 
+(defmethod print-object ((object widget) stream)
+  (if (name object)
+      (print-unreadable-object (object stream :type t :identity t)
+        (princ (name object) stream))
+      (call-next-method)))
+
 (defgeneric render (widget &rest named-pairs &key &allow-other-keys)
   (:documentation "Renders a widget."))
 
