@@ -278,23 +278,44 @@ Slots that have names that match parameter names are updated with the parameter 
     
     (setf (dom) ())))
 
+
+;;TODO: Strip out duplicate includes.
+
 (defun js-inclusion-string (path)
   (format nil "<script type='text/javascript' src='~a'></script>" path))
 
 (defun css-inclusion-string (path)
   (format nil "<link href='~a' rel='stylesheet' type='text/css' />" path))
 
+(defun widget-include-css (widget-class-instance)
+  (when widget-class-instance
+    (loop for css in (include-css widget-class-instance)
+          do (princ (css-inclusion-string css)))))
+
+(defun page-include-css ()
+  (map-dom
+   (lambda (value)
+     (when (subtypep (class-of (class-of value)) 'widget-class)
+       (widget-include-css (class-of value))))))
+
+(defun widget-include-js (widget-class-instance)
+  (when widget-class-instance
+    (loop for js in (include-js widget-class-instance)
+          do (princ (js-inclusion-string js)))))
+
+(defun page-include-js ()
+  (map-dom
+   (lambda (value)
+     (when (subtypep (class-of (class-of value)) 'widget-class)
+       (widget-include-js (class-of value))))))
+
 (defun widget-include-bits (widget-class-instance)
   "Returns the include statements for then widget's include files."
   (when widget-class-instance
-    (loop for css in (include-css widget-class-instance)
-          do (princ (css-inclusion-string css)))
-    (loop for js in (include-js widget-class-instance)
-          do (princ (js-inclusion-string js)))
     (map nil #'princ (include-bits widget-class-instance))))
 
 (defun page-include-bits ()
-  :documentation "Takes stuff that needs to be written to the html header to make a widget work. This type of thing is independant of the rendering of the actual widget. The method page-include-bits goes through all the widgets for a page on in the dom and adds any include-bits found and this method needs to be explicitly called in the header of a html page."
+  :documentation "Takes stuff that needs to be written to the html that is independant of the rendering of the actual widget. The method page-include-bits goes through all the widgets for a page on in the dom and adds any include-bits found and this method needs to be explicitly called in html page."
   (map-dom
    (lambda (value)
      (when (subtypep (class-of (class-of value)) 'widget-class)

@@ -15,6 +15,8 @@
    :name
    :make-widget
    :page-include-bits
+   :page-include-css
+   :page-include-js
    :get-widget
    :set-widget
    :find-slot
