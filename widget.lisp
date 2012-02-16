@@ -1,15 +1,22 @@
 (in-package :wfx)
 
 (defclass widget-class (standard-class)
-  ((include-bits :initarg :include-bits
-		 :initform nil
-		 :accessor include-bits)
+  ((include-bits 
+    :initarg :include-bits
+    :initform nil
+    :accessor include-bits
+    :documentation "Stuff that needs to be written to the html header to make a widget work. Like a style block or javascript block. See page-include-bits method.")
    (include-js :initarg :include-js
                :initform nil
                :accessor include-js)
    (include-css :initarg :include-css
                :initform nil
-               :accessor include-css))
+               :accessor include-css)
+   (action-params 
+    :initarg :action-params
+    :initform nil
+    :accessor action-params
+    :documentation "The names of parameters that should trigger handle actions. If you want a widget to be reused make these \"interesting\" and use widgy-name to create the names of these parameters in the render method of the widget."))
   (:documentation "Meta class for widgets."))
 
 (defmethod validate-superclass ((class widget-class)
@@ -208,9 +215,23 @@ The dom is automatically updated before a request is passed to a hunchentoot han
 (defgeneric synq-widget-data (widget))
 
 (defgeneric action-handler (widget)
-  (:documentation "This function is called after the dom has been updated from parameters.
+  (:documentation "This method is called after the dom has been updated from parameters.
 This is the ideal place to place code that handles post or get actions.")
   (:method ((widget widget))))
+
+(defgeneric handle-action (widget action)
+  (:documentation "This method is a convenience method that can be used to specialize on actions that are handled by action-handler. For example (defmethod handle-action ((grid grid) (action (eql 'delete))) ...do something here.")
+  (:method ((widget widget) action)))
+
+(defmethod action-handler ((widget widget))
+  (when (subtypep (class-of (class-of widget)) 'widget-class)
+    (if (slot-boundp (class-of widget) ' action-params)
+        (dolist (trigger (slot-value (class-of widget) 'action-params))
+          (let ((trig (widgy-name widget (string-downcase (symbol-name trigger)))))
+            (when (parameter trig)
+              (handle-action widget trigger)))))))
+
+
 
 (defgeneric update-dom (widget)
   (:documentation "Updates widget slots values.
@@ -273,6 +294,7 @@ Slots that have names that match parameter names are updated with the parameter 
     (map nil #'princ (include-bits widget-class-instance))))
 
 (defun page-include-bits ()
+  :documentation "Takes stuff that needs to be written to the html header to make a widget work. This type of thing is independant of the rendering of the actual widget. The method page-include-bits goes through all the widgets for a page on in the dom and adds any include-bits found and this method needs to be explicitly called in the header of a html page."
   (map-dom
    (lambda (value)
      (when (subtypep (class-of (class-of value)) 'widget-class)

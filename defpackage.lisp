@@ -10,6 +10,7 @@
    :un-widgy-name
    :render
    :action-handler
+   :handle-action
    :synq-widget-data
    :name
    :make-widget
