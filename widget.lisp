@@ -12,6 +12,11 @@
    (include-css :initarg :include-css
                :initform nil
                :accessor include-css)
+   (state-params 
+    :initarg :state-params
+    :initform nil
+    :accessor state-params
+    :documentation "The names of parameters that should trigger different render methods. If you want a widget to be reused make these \"interesting\" and use widgy-name to create the names of these parameters in the render method of the widget.")
    (action-params 
     :initarg :action-params
     :initform nil
@@ -268,6 +273,18 @@ Slots that have names that match parameter names are updated with the parameter 
 
 (defmethod render :before ((widget widget) &key)
   (pushnew widget (dom)))
+
+(defgeneric render-state (widget state state-value &key &allow-other-keys)
+  (:documentation "Renders a widget."))
+
+(defmethod render ((widget widget) &key)
+  (when (subtypep (class-of (class-of widget)) 'widget-class)
+    (if (slot-boundp (class-of widget) 'state-params)
+        (dolist (state-param (slot-value (class-of widget) 'state-params))
+          (let ((state (widgy-name widget (string-downcase (symbol-name state-param)))))
+            (when (parameter state)
+              ;;TODO: How to handle other key params?
+              (render-state widget state-param (parameter state))))))))
 
 (defmethod handle-request :before ((*acceptor* acceptor) (*request* request))
   "Update widgets in the dom before the request is passed to handler."
