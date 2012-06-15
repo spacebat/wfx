@@ -1,7 +1,0 @@
-glob:*.fasl
-glob:*.*~
-glob:*.orig
-glob:#*#
-glob:*#
-glob:#*
-glob:.#*
