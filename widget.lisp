@@ -245,12 +245,21 @@ Slots that have names that match parameter names are updated with the parameter 
 (defmethod synq-widget-data ((widget widget))
   (let ((parameters (append (get-parameters *request*)
                             (post-parameters *request*))))
-    (dolist (object (data widget))
-      (when (typep object 'standard-object)
-        (loop for (key . value) in parameters
-              for slot = (find-slot key object)
-              when slot
-              do (update-slot object slot value))))))
+
+    (if (listp (data widget))
+        (dolist (object (data widget))
+          (when (typep object 'standard-object)
+            (loop for (key . value) in parameters
+               for slot = (find-slot key object)
+               when slot
+               do (update-slot object slot value))))
+        (when (typep (data widget) 'standard-object)
+
+            (loop for (key . value) in parameters
+               for slot = (find-slot key (data widget))
+               when slot
+               do (update-slot (data widget) slot value)))
+        )))
 
 (defmethod update-dom ((widget widget))
   (let ((parameters (append (get-parameters *request*)
